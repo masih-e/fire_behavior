@@ -121,6 +121,14 @@
         call grid%Handle_wrfdata_update (wrf, config_flags)
       end if
 
+      if (config_flags%restart) then
+        if (DEBUG_LOCAL) call Print_message ('    Reading restart state')
+        call grid%Read_restart (config_flags)
+      else
+        if (DEBUG_LOCAL) call Print_message ('    Saving fire state')
+        call grid%Save_state ()
+      end if
+
       if (DEBUG_LOCAL) then
           ! print lat/lons
         open (newunit = unit_out, file = 'latlons_c.dat')

@@ -121,6 +121,7 @@
     contains
       procedure, public :: Allocate_vars => Allocate_vars
       procedure, public :: Apply_wafs => Apply_wafs
+      procedure, public :: Check_model_clock => Check_model_clock
       procedure, public :: Convert_sb_to_ander => Convert_scottburgan_to_anderson
       procedure, public :: Handle_output => Handle_output
       procedure, public :: Handle_restart => Handle_restart
@@ -294,6 +295,21 @@
       !$OMP END PARALLEL DO
 
     end subroutine Convert_scottburgan_to_anderson
+
+    subroutine Check_model_clock (this)
+
+      implicit none
+
+      class (state_fire_t), intent (in) :: this
+
+      type (datetime_t) :: datetime_check
+
+
+      datetime_check = this%datetime_start
+      call datetime_check%Add_seconds (this%itimestep * this%dt)
+      if (datetime_check /= this%datetime_now) call Stop_simulation ('Model clock is inconsistent with itimestep and dt')
+
+    end subroutine Check_model_clock
 
     subroutine Handle_output (this, config_flags)
 
