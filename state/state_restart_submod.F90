@@ -13,6 +13,7 @@
     character (len = *), parameter :: NAME_VAR_FMC_GC = 'fmc_gc'
     character (len = *), parameter :: NAME_ATT_FMOIST_LASTTIME = 'fmc_fmoist_lasttime'
     character (len = *), parameter :: NAME_ATT_FMOIST_NEXTTIME = 'fmc_fmoist_nexttime'
+    real, parameter :: RESTART_INTERVAL_TOL = 1.0e-6
 
   contains
 
@@ -21,6 +22,41 @@
       file_restart = 'fire_restart_'//trim (restart_datetime)//'.nc'
 
     end procedure Build_restart_file_name
+
+    module procedure Handle_restart
+
+      real :: restart_interval_seconds, restart_interval_error
+      character (len = 256) :: msg
+      logical :: do_initialize
+
+
+      do_initialize = .false.
+      if (present (initialize)) do_initialize = initialize
+
+      if (do_initialize .or. .not. this%is_restart_output_initialized) then
+        this%restart_step_interval = -1
+        if (config_flags%restart_interval > 0) then
+          this%restart_step_interval = nint (real (config_flags%restart_interval) / this%dt)
+          restart_interval_seconds = this%restart_step_interval * this%dt
+          restart_interval_error = abs (restart_interval_seconds - real (config_flags%restart_interval))
+
+          if (this%restart_step_interval <= 0 .or. &
+              restart_interval_error > max (RESTART_INTERVAL_TOL, abs (real (config_flags%restart_interval)) * RESTART_INTERVAL_TOL)) then
+            write (msg, '(a, i0, a, f12.6)') 'restart_interval must map to an integer number of time steps: restart_interval = ', &
+                config_flags%restart_interval, ', dt = ', this%dt
+            call Stop_simulation (msg)
+          end if
+        end if
+        this%is_restart_output_initialized = .true.
+      end if
+
+      if (do_initialize) return
+
+      if (this%restart_step_interval > 0) then
+        if (mod (this%itimestep, this%restart_step_interval) == 0) call this%Write_restart (config_flags)
+      end if
+
+    end procedure Handle_restart
 
     module procedure Init_restart_dimensions
 

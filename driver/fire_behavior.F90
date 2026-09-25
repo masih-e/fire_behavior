@@ -15,15 +15,11 @@
     implicit none
 
     integer :: ierr, rank, mpi_comm_cfbm
-    integer :: restart_step_interval
-    real :: restart_interval_seconds, restart_interval_error
     type (state_fire_t) :: grid
     type (wrfdata_t) :: atm_state
     type (namelist_t) :: config_flags
     type (datetime_t) :: datetime_check
-    character (len = 256) :: msg
     logical, parameter :: DEBUG_LOCAL = .false.
-    real, parameter :: RESTART_INTERVAL_TOL = 1.0e-6
 
 
     if (DEBUG_LOCAL) write (OUTPUT_UNIT, *) 'Running fire_behavior...'
@@ -87,19 +83,7 @@
       call grid%Save_state ()
     end if
 
-    restart_step_interval = -1
-    if (config_flags%restart_interval > 0) then
-      restart_step_interval = nint (real (config_flags%restart_interval) / grid%dt)
-      restart_interval_seconds = restart_step_interval * grid%dt
-      restart_interval_error = abs (restart_interval_seconds - real (config_flags%restart_interval))
-
-      if (restart_step_interval <= 0 .or. &
-          restart_interval_error > max (RESTART_INTERVAL_TOL, abs (real (config_flags%restart_interval)) * RESTART_INTERVAL_TOL)) then
-        write (msg, '(a, i0, a, f12.6)') 'restart_interval must map to an integer number of time steps: restart_interval = ', &
-            config_flags%restart_interval, ', dt = ', grid%dt
-        call Stop_simulation (msg)
-      end if
-    end if
+    call grid%Handle_restart (config_flags, initialize = .true.)
 
     if (DEBUG_LOCAL) write (OUTPUT_UNIT, *) '  Starting temporal loop...'
     do while (grid%datetime_now < grid%datetime_end)
@@ -112,9 +96,7 @@
       call grid%Handle_output (config_flags)
       if (config_flags%ideal_opt == 0) call grid%Handle_wrfdata_update (atm_state, config_flags)
 
-      if (restart_step_interval > 0) then
-        if (mod (grid%itimestep, restart_step_interval) == 0) call grid%Write_restart (config_flags)
-      end if
+      call grid%Handle_restart (config_flags)
     end do
     if (DEBUG_LOCAL) write (OUTPUT_UNIT, *) '  Completed temporal loop'
 
